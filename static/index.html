@@ -1,0 +1,242 @@
+<html>
+
+<head>
+  <meta charset="utf-8">
+  <title>INFO 4310 - Extra Credit</title>
+  <script src="//cdnjs.cloudflare.com/ajax/libs/highlight.js/11.2.0/highlight.min.js"></script>
+  <script src="https://d3js.org/d3.v7.min.js"></script>
+  <script src="https://d3js.org/topojson.v3.min.js"></script>
+  <style>
+    .gridlines line {
+      stroke: #bbb;
+    }
+
+    .gridlines .domain {
+      stroke: none;
+    }
+
+    #vis {
+      display: flex;
+      flex-direction: row;
+    }
+
+    #header {
+      font-weight: bold;
+    }
+
+    #details {
+      border: 1px solid black;
+      padding-left: 20px;
+      padding-right: 20px;
+      margin-left: 20px;
+      width: 400px;
+    }
+  </style>
+</head>
+
+<body>
+  <h1>Tidy Tuesday Visualization of Indoor Air Pollution</h1>
+
+  <div id="vis">
+    <svg id="scatterplot" height="700" width="900"></svg>
+    <div>
+      <div id="details">
+        <p id="header">Details</p>
+        <p id="country">Country: </p>
+        <p id="continent">Continent: </p>
+        <p id="year">Year: </p>
+        <p id="gdp">GDP Per Capita: </p>
+        <p id="death">Percent Death by Indoor Pollution: </p>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const graphSVG = d3.select("svg#scatterplot");
+    const graphSVGWidth = graphSVG.attr("width");
+    const graphSVGHeight = graphSVG.attr("height");
+    const graphMargins = { "top": 10, "right": 10, "bottom": 50, "left": 75 };
+    const graphWidth = graphSVGWidth - graphMargins.left - graphMargins.right;
+    const graphHeight = graphSVGHeight - graphMargins.top - graphMargins.bottom;
+    let graphAnnotations = graphSVG.append("g").attr("id", "graphAnnotations");
+    let graphArea = graphSVG.append("g")
+      .attr("id", "graphArea")
+      .attr("transform", `translate(${graphMargins.left},${graphMargins.top})`);
+
+    let gdp_and_pollution;
+
+    let gdpExtent;
+    let gdpScale;
+    let pollutionDeathExtent;
+    let pollutionDeathScale;
+
+    let continent_map;
+    let continents = ['Europe', 'Africa', 'Antarctica', 'South America', 'Asia', 'North America', 'Oceania'];
+    let colorScale = d3.scaleOrdinal().domain(continents).range(d3.schemeCategory10);
+
+    let yearExtent;
+    let yearScale;
+
+    let highlight_country;
+
+    // let percent_format = d3.format("d%");
+
+    const loadData = async function () {
+
+      gdp_and_pollution = await d3.csv("combined_data.csv", d3.autoType);
+      continent_map = await d3.json("continents.json");
+
+      gdpExtent = d3.extent(gdp_and_pollution, d => d["GDP per capita, PPP (constant 2017 international $)"]);
+      gdpScale = d3.scaleLinear().domain(gdpExtent).range([0, graphWidth]);
+
+      pollutionDeathExtent = d3.extent(gdp_and_pollution, d => d["Deaths - Cause: All causes - Risk: Household air pollution from solid fuels - Sex: Both - Age: Age-standardized (Percent)"]);
+      pollutionDeathScale = d3.scaleLinear().domain(pollutionDeathExtent).range([graphHeight, 0]);
+
+      yearExtent = d3.extent(gdp_and_pollution, d => d["Year"]);
+      yearScale = d3.scaleLinear().domain(yearExtent).range([2, 7]);
+      console.log(yearExtent);
+
+      updateGraph();
+    }
+
+    function updateGraph() {
+      // scatterplot with country gdp on one axis and death by indoor pollution (as percent of population) on the other
+      // color points by region?
+      // size of points by time (earlier time = smaller point? similar to one of the articles we read - Week 10 Paper 2 Traces Visualization)
+      // interaction: pan and zoom? + clickable point panel
+
+      // y-axis: pollution death
+      let leftAxis = d3.axisLeft(pollutionDeathScale)
+        .tickPadding(10);
+      let leftGridlines = d3.axisLeft(pollutionDeathScale)
+        .tickSize(-graphWidth - 10)
+        .tickFormat("%")
+        .tickPadding(7);
+
+      graphAnnotations.append("g")
+        .attr("class", "graph y axis")
+        .attr("transform", `translate(${graphMargins.left - 10},${graphMargins.top})`)
+        .call(leftAxis);
+
+      graphAnnotations.append("g")
+        .attr("class", "graph y gridlines")
+        .attr("transform", `translate(${graphMargins.left - 10},${graphMargins.top})`)
+        .call(leftGridlines);
+
+      // x-axis: gdp scale
+      let bottomAxis = d3.axisBottom(gdpScale);
+      let bottomGridlines = d3.axisBottom(gdpScale)
+        .tickSize(-graphHeight - 5)
+        .tickFormat("");
+
+      graphAnnotations.append("g")
+        .attr("class", "graph x axis")
+        .attr("transform", `translate(${graphMargins.left},${graphHeight + graphMargins.top + 5})`)
+        .call(bottomAxis);
+
+      graphAnnotations.append("g")
+        .attr("class", "graph x gridlines")
+        .attr("transform", `translate(${graphMargins.left},${graphHeight + graphMargins.top + 5})`)
+        .call(bottomGridlines);
+
+      // axis labels
+      graphAnnotations.append("text")
+        .attr("class", "x label")
+        .attr("transform", `translate(${graphWidth / 2 - 10},${graphHeight + graphMargins.bottom + 6})`)
+        .text("Country GDP Per Capita")
+        .style("font-weight", "bold");
+
+      graphAnnotations.append("text")
+        .attr("class", "y label")
+        .attr("x", -1 * (graphHeight / 2 + graphMargins.top) - 80)
+        .attr("y", graphMargins.left / 4)
+        .attr("transform", "rotate(-90)")
+        .style("font-weight", "bold")
+        .text("Percent Deaths by Indoor Pollution")
+
+      // add data points
+      let circles = graphArea.selectAll("circle.point").data(gdp_and_pollution)
+        .join(enter => {
+
+          enter.append("circle")
+            .attr("class", d => `point ${d["Code"]}`)
+            .attr("opacity", 0.2)
+            .attr("cx", d => gdpScale(d["GDP per capita, PPP (constant 2017 international $)"]))
+            .attr("cy", d => pollutionDeathScale(d["Deaths - Cause: All causes - Risk: Household air pollution from solid fuels - Sex: Both - Age: Age-standardized (Percent)"]))
+            .attr("r", d => yearScale(d["Year"]))
+            .attr("fill", d => colorScale(d["Continent"]))
+            .attr("code", d => d["Code"])
+            .attr("year", d => d["Year"])
+            .on("mouseover", function (event, d) {
+              code = event.path[0].getAttribute("code");
+              highlight_country = code;
+              console.log("highlighted country: " + highlight_country);
+
+              d3.selectAll(`circle.${highlight_country}`)
+                .transition().duration(200)
+                .attr("stroke", "black")
+                .attr("stroke-width", 4);
+
+              d3.select("#country").text(`Country: ${d["Entity"]}`);
+              d3.select("#continent").text(`Continent: ${d["Continent"]}`);
+              d3.select("#year").text(`Year: ${d["Year"]}`);
+              d3.select("#gdp").text(`GDP Per Capita: ${d["GDP per capita, PPP (constant 2017 international $)"]}`);
+              d3.select("#death").text(`Percent Death by Indoor Pollution: ${d["Deaths - Cause: All causes - Risk: Household air pollution from solid fuels - Sex: Both - Age: Age-standardized (Percent)"]}`);
+            })
+            .on("mouseout", function (event) {
+              d3.selectAll(`circle.${highlight_country}`)
+                .transition().duration(200)
+                .attr("stroke", "")
+                .attr("stroke-width", 1);
+
+              highlight_country = "";
+
+              d3.select("#country").text(`Country: `);
+              d3.select("#continent").text(`Continent: `);
+              d3.select("#year").text(`Year: `);
+              d3.select("#gdp").text(`GDP Per Capita: `);
+              d3.select("#death").text(`Percent Death by Indoor Pollution: `);
+            })
+        });
+
+    }
+
+    function mouseOverPoint(event) {
+      code = event.path[0].getAttribute("code");
+      highlight_country = code;
+      console.log(code)
+
+      d3.select(this)
+        .transition().duration(200)
+        .attr("stroke", "black")
+        .attr("stroke-width", 4)
+    }
+
+    function mouseOutPoint(event) {
+      highlight_country = "";
+      d3.select(this)
+        .transition().duration(200)
+        .attr("stroke", "")
+        .attr("stroke-width", 1)
+    }
+
+    // pan-zoom handler
+    // let zoomExtent = [[0, 0], [graphWidth, graphHeight]];
+    // let translateExtent = [[-100, -100], [graphWidth + 100, graphHeight + 100]];
+    // var plotZoom = d3.zoom()
+    //   .extent(zoomExtent)
+    //   .translateExtent(translateExtent)
+    //   .scaleExtent([1, 10])
+    //   .on("zoom", plotZoomed);
+
+    // graphArea.call(plotZoom);
+
+    // function plotZoomed({transform}) {
+    //   viewport.attr("transform", transform);
+    // }
+
+    loadData()
+  </script>
+</body>
+
+</html>
