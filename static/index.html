@@ -20,8 +20,9 @@
       flex-direction: row;
     }
 
-    #header {
+    .header {
       font-weight: bold;
+      background-color: #FFD700;
     }
 
     #details {
@@ -29,19 +30,39 @@
       padding-left: 20px;
       padding-right: 20px;
       margin-left: 20px;
-      width: 400px;
+      width: 300px;
+    }
+
+    #legend {
+      border: 1px solid black;
+      padding-left: 20px;
+      margin-left: 20px;
+      margin-bottom: 20px;
+      display: flex;
+      flex-direction: row;
+    }
+
+    #right_col {
+      margin-left: 60px;
     }
   </style>
 </head>
 
 <body>
-  <h1>Tidy Tuesday Visualization of Indoor Air Pollution</h1>
+  <h1>Effects of GDP Per Capita on Deaths by Indoor Air Pollution</h1>
+  <p>Hover over a point to see more details about it and other years of data for that country.</p>
 
   <div id="vis">
-    <svg id="scatterplot" height="700" width="900"></svg>
+    <svg id="scatterplot" height="700" width="1000"></svg>
     <div>
+      <div id="legend">
+        <div id="left_col">
+          <p class="header">Continent Legend</p>
+        </div>
+        <div id="right_col"></div>
+      </div>
       <div id="details">
-        <p id="header">Details</p>
+        <p class="header">Detail Overview</p>
         <p id="country">Country: </p>
         <p id="continent">Continent: </p>
         <p id="year">Year: </p>
@@ -74,12 +95,21 @@
     let continents = ['Europe', 'Africa', 'Antarctica', 'South America', 'Asia', 'North America', 'Oceania'];
     let colorScale = d3.scaleOrdinal().domain(continents).range(d3.schemeCategory10);
 
+    for (let i = 0; i < continents.length; i++) {
+      let select = i < 3 ? "left" : "right";
+
+      d3.select(`#${select}_col`).append("p")
+        .attr("class", "continent_legend")
+        .text(continents[i])
+        .style("color", d => colorScale(continents[i]))
+    }
+
     let yearExtent;
     let yearScale;
 
     let highlight_country;
 
-    // let percent_format = d3.format("d%");
+    let decimal_format = d3.format(",.2f")
 
     const loadData = async function () {
 
@@ -94,6 +124,7 @@
 
       yearExtent = d3.extent(gdp_and_pollution, d => d["Year"]);
       yearScale = d3.scaleLinear().domain(yearExtent).range([2, 7]);
+
       console.log(yearExtent);
 
       updateGraph();
@@ -180,8 +211,8 @@
               d3.select("#country").text(`Country: ${d["Entity"]}`);
               d3.select("#continent").text(`Continent: ${d["Continent"]}`);
               d3.select("#year").text(`Year: ${d["Year"]}`);
-              d3.select("#gdp").text(`GDP Per Capita: ${d["GDP per capita, PPP (constant 2017 international $)"]}`);
-              d3.select("#death").text(`Percent Death by Indoor Pollution: ${d["Deaths - Cause: All causes - Risk: Household air pollution from solid fuels - Sex: Both - Age: Age-standardized (Percent)"]}`);
+              d3.select("#gdp").text(`GDP Per Capita: $${decimal_format(d["GDP per capita, PPP (constant 2017 international $)"])}`);
+              d3.select("#death").text(`Percent Death by Indoor Pollution: ${decimal_format(d["Deaths - Cause: All causes - Risk: Household air pollution from solid fuels - Sex: Both - Age: Age-standardized (Percent)"])}%`);
             })
             .on("mouseout", function (event) {
               d3.selectAll(`circle.${highlight_country}`)
@@ -219,21 +250,6 @@
         .attr("stroke", "")
         .attr("stroke-width", 1)
     }
-
-    // pan-zoom handler
-    // let zoomExtent = [[0, 0], [graphWidth, graphHeight]];
-    // let translateExtent = [[-100, -100], [graphWidth + 100, graphHeight + 100]];
-    // var plotZoom = d3.zoom()
-    //   .extent(zoomExtent)
-    //   .translateExtent(translateExtent)
-    //   .scaleExtent([1, 10])
-    //   .on("zoom", plotZoomed);
-
-    // graphArea.call(plotZoom);
-
-    // function plotZoomed({transform}) {
-    //   viewport.attr("transform", transform);
-    // }
 
     loadData()
   </script>
